@@ -1,8 +1,5 @@
 # jakkChatBOT
 
-### Support OpenAI API Key
-Check the .env file for the API key configuration.
-
 ## Overview
 jakkChatBOT is an advanced chatbot application meticulously crafted using Flask, SQLAlchemy, and state-of-the-art machine learning models such as GPT-2 and T5. This versatile application supports multiple languages and integrates features like speech-to-text and text-to-speech to ensure a seamless user experience. Key functionalities include user authentication, language detection, and comprehensive system status monitoring. **The application is designed to be implemented in both Python and JavaScript environments.**
 
