@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="./icon.png" type="image/png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ css_url }}">
+    <style>
+        body {
+            background: #f0f0f0;
+        }
+        .dashboard-container {
+            padding: 20px;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .status.normal {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.critical {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .system-status {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .status-box {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 10px;
+            width: 30%;
+            text-align: center;
+        }
+        .status-box h3 {
+            margin-bottom: 10px;
+        }
+        .status-box p {
+            font-size: 1.2em;
+        }
+        .admin-section {
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <h1>Admin Dashboard</h1>
+        <h2>System Monitoring</h2>
+        <div class="system-status">
+            <div class="status-box">
+                <h3>CPU Usage</h3>
+                <p id="cpu-usage">Loading...</p>
+            </div>
+            <div class="status-box">
+                <h3>Memory Usage</h3>
+                <p id="memory-usage">Loading...</p>
+            </div>
+            <div class="status-box">
+                <h3>GPU Usage</h3>
+                <p id="gpu-usage">Loading...</p>
+            </div>
+        </div>
+        <div class="status {{ status.lower() }}">
+            <p>CPU Usage: {{ cpu_usage }}%</p>
+            <p>Memory Usage: {{ memory_info.percent }}%</p>
+            <p>GPU Usage: {{ gpu_usage }}</p>
+            <p>Status: {{ status }}</p>
+        </div>
+
+        <h2>Users</h2>
+        <ul>
+            {% for user in users %}
+                <li>{{ user.display_name or "Unknown" }}</li>
+            {% endfor %}
+        </ul>
+
+        <h2>User Languages</h2>
+        <ul>
+            {% for user_language in user_languages %}
+                <li>{{ user_language.user_id }}: {{ user_language.language }} ({{ user_language.computer_name }})</li>
+            {% endfor %}
+        </ul>
+
+        <h2>User Management</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Languages</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.display_name or "Unknown" }}</td>
+                    <td>
+                        {% for lang in user_languages if lang.user_id == user.id %}
+                            {{ lang.language }} ({{ lang.computer_name }})<br>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Additional Functionalities</h2>
+        <ul>
+            <!-- <li><a href="{{ url_for('admin_panel') }}">Admin Panel</a></li> -->
+            <li><a href="{{ url_for('system_status') }}">System Status</a></li>
+            <li><a href="{{ url_for('upload_file') }}">Upload File</a></li>
+        </ul>
+    </div>
+    <script>
+        function fetchSystemStatus() {
+            fetch('/system_status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('cpu-usage').innerText = data.cpu_usage + '%';
+                    document.getElementById('memory-usage').innerText = data.memory_info.percent + '%';
+                    document.getElementById('gpu-usage').innerText = data.gpu_usage.length > 0 ? data.gpu_usage[0] + ' MB' : 'N/A';
+                });
+        }
+        setInterval(fetchSystemStatus, 5000); // Update every 5 seconds
+        fetchSystemStatus(); // Initial fetch
+    </script>
+</body>
+</html>

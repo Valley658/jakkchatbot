@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="./icon.png" type="image/png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="{{ css_url }}">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f0f0f0;
+            margin-top: 70px; /* Adjusted for taller black bar */
+        }
+        .login-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            font-size: 18px;
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 18px;
+        }
+        #scrolling-notice {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background-color: black;
+            color: white;
+            font-weight: bold;
+            overflow: hidden;
+            white-space: nowrap;
+            height: 30px; /* Taller black bar */
+            line-height: 30px; /* Center the text vertically */
+        }
+        #scrolling-notice span {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scroll-left 10s linear infinite; /* Matches the example speed */
+        }
+        @keyframes scroll-left {
+            0% {
+                transform: translateX(100%);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+        #notice {
+            position: fixed;
+            top: 35px; /* Adjusted for taller black bar */
+            width: 100%;
+            text-align: center;
+            color: red;
+            font-weight: bold;
+            font-size: 25px; /* Larger font size */
+        }
+    </style>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var userLang = navigator.language || navigator.userLanguage;
+            var notice = document.getElementById("notice");
+            var scrollingNotice = document.getElementById("scrolling-notice-text");
+            var messages = {
+                "ko": "여러분 이 사이트를 해킹하지 마세요 해킹을 하면 업데이트가 느려집니다!",
+                "es": "Por favor, no hackees este sitio. ¡Hacerlo ralentizará las actualizaciones!",
+                "fr": "Veuillez ne pas pirater ce site. Le piratage ralentira les mises à jour!",
+                "de": "Bitte hacken Sie diese Seite nicht. Hacking wird Updates verlangsamen!",
+                "zh": "请不要黑这个网站。黑客攻击会减慢更新速度！",
+                "default": "Please do not hack this site. Hacking will slow down updates!"
+            };
+            var scrollingMessage = "This site is preparing for a major update. Please be patient!";
+            notice.textContent = messages[userLang.split('-')[0]] || messages["default"];
+            scrollingNotice.textContent = scrollingMessage;
+        });
+    </script>
+</head>
+<body>
+    <div id="scrolling-notice"><span id="scrolling-notice-text"></span></div>
+    <div id="notice"></div>
+    
+    <div class="login-container">
+        <h2>Login</h2>
+        <form method="POST" action="{{ url_for('login') }}">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                {{ form.username.label }}<br>
+                {{ form.username(size=32, class_="form-control") }}
+            </div>
+            <div class="form-group">
+                {{ form.password.label }}<br>
+                {{ form.password(size=32, class_="form-control") }}
+            </div>
+            {% if error_message %}
+                <p class="error">{{ error_message }}</p>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+        <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+    </div>
+
+    <!-- Server status monitoring script -->
+    <script src="{{ url_for('static', filename='server-monitor.js') }}"></script>
+</body>
+</html>

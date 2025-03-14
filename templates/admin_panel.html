@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="./icon.png" type="image/png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ css_url }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            flex-grow: 1;
+        }
+        
+        h1 {
+            color: #10a37f;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .admin-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .admin-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 25px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-decoration: none;
+            color: #333;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-align: center;
+        }
+        
+        .admin-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .admin-btn i {
+            font-size: 36px;
+            margin-bottom: 15px;
+            color: #10a37f;
+        }
+        
+        /* Dark mode styling */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1e1e1e;
+                color: #e0e0e0;
+            }
+            
+            .admin-btn {
+                background-color: #252525;
+                color: #e0e0e0;
+            }
+        }
+    </style>
+    <title>Admin Panel</title>
+</head>
+<body>
+    <div class="container">
+        <h1>관리자 패널</h1>
+        
+        <div class="admin-panel">
+            <a href="{{ url_for('dashboard') }}" class="admin-btn">
+                <i class="fas fa-tachometer-alt"></i>
+                대시보드
+            </a>
+            
+            <a href="{{ url_for('pip_commands') }}" class="admin-btn">
+                <i class="fas fa-terminal"></i>
+                Pip 명령어 참조
+            </a>
+            
+            <a href="{{ url_for('ip_management') }}" class="admin-btn">
+                <i class="fas fa-shield-alt"></i>
+                IP 관리
+            </a>
+            
+            <a href="{{ url_for('chat') }}" class="admin-btn">
+                <i class="fas fa-comment"></i>
+                채팅으로 돌아가기
+            </a>
+        </div>
+    </div>
+    
+    <!-- Server status monitoring script -->
+    <script src="{{ url_for('static', filename='server-monitor.js') }}"></script>
+</body>
+</html>

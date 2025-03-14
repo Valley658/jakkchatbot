@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+    <link rel="icon" href="./icon.png" type="image/png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JakkChatBOT</title>
+    <link rel="stylesheet" href="{{ css_url }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --chatgpt-green: #10a37f;
+            --sidebar-bg: #202123;
+            --main-bg: #ffffff;
+            --message-bg: #f7f7f8;
+            --bot-message-bg: #f7f7f8;
+            --user-message-bg: #ffffff;
+            --text-color: #343541;
+            --sidebar-text: #ececf1;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            color: var(--text-color);
+        }
+
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            padding: 10px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .new-chat-btn {
+            background-color: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--sidebar-text);
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .new-chat-btn:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .new-chat-btn i {
+            margin-right: 10px;
+        }
+
+        .saved-chats {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .saved-chat-item {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .saved-chat-item:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .saved-chat-item i {
+            margin-right: 10px;
+        }
+
+        .user-section {
+            padding: 10px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+        }
+
+        .user-icon {
+            width: 30px;
+            height: 30px;
+            background-color: var(--chatgpt-green);
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 10px;
+        }
+
+        .username {
+            flex-grow: 1;
+        }
+
+        .main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #6e6e80;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            color: var(--chatgpt-green);
+        }
+
+        .chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 0 20%;
+        }
+
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-color);
+        }
+
+        .welcome-screen h1 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        .message-container {
+            display: flex;
+            padding: 20px 0;
+            border-bottom: 1px solid #e5e5e5;
+            line-height: 1.5;
+        }
+
+        .message-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        .user-icon-message {
+            background-color: #936de9;
+            color: white;
+        }
+
+        .bot-icon-message {
+            background-color: var(--chatgpt-green);
+            color: white;
+        }
+
+        .message-content {
+            flex-grow: 1;
+            overflow-wrap: break-word;
+        }
+
+        .message-content pre {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+
+        .input-area {
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        .message-form {
+            display: flex;
+            width: 60%;
+            position: relative;
+        }
+
+        .message-input {
+            flex-grow: 1;
+            padding: 12px 45px 12px 15px;
+            border: 1px solid #d9d9d9;
+            border-radius: 8px;
+            resize: none;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: var(--chatgpt-green);
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            background: none;
+            border: none;
+            color: var(--chatgpt-green);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .send-btn:disabled {
+            color: #d9d9d9;
+            cursor: not-allowed;
+        }
+
+        .message-icons {
+            position: absolute;
+            left: 12px;
+            bottom: 12px;
+            color: #6e6e80;
+        }
+
+        .model-selector {
+            margin-bottom: 10px;
+            padding: 10px;
+        }
+
+        .model-selector select {
+            width: 100%;
+            padding: 8px;
+            background-color: transparent;
+            color: var(--sidebar-text);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 5px;
+        }
+
+        /* Loading animation */
+        .typing-indicator {
+            display: inline-flex;
+            margin-left: 10px;
+        }
+
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            background-color: #6e6e80;
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: bounce 1.5s infinite ease-in-out;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-5px);
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .welcome-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            color: #555;
+            text-align: center;
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+        
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        /* Dark mode styles */
+        @media (prefers-color-scheme: dark) {
+            body.auto-theme {
+                background-color: #1e1e1e;
+                color: #e0e0e0;
+            }
+            
+            body.auto-theme .welcome-message {
+                color: #b0b0b0;
+            }
+            
+            body.auto-theme input, 
+            body.auto-theme textarea, 
+            body.auto-theme button {
+                background-color: #333;
+                color: #e0e0e0;
+                border-color: #555;
+            }
+            
+            body.auto-theme .chat-history {
+                background-color: #252525;
+                border-color: #444;
+            }
+        }
+        
+        /* Force dark mode */
+        body.dark-theme {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+        }
+        
+        body.dark-theme .welcome-message {
+            color: #b0b0b0;
+        }
+        
+        body.dark-theme input, 
+        body.dark-theme textarea, 
+        body.dark-theme button {
+            background-color: #333;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+        
+        body.dark-theme .chat-history {
+            background-color: #252525;
+            border-color: #444;
+        }
+    </style>
+</head>
+<body class="{{ 'dark-theme' if dark_mode else 'auto-theme' }}">
+    <div class="sidebar">
+        <button class="new-chat-btn" id="clearChat">
+            <i class="fas fa-plus"></i> New chat
+        </button>
+        
+        <div class="model-selector">
+            <select id="modelSelector">
+                {% for model in models %}
+                <option value="{{ model.id }}">{{ model.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="saved-chats" id="savedChatsList">
+            <!-- Saved chats will be populated here -->
+        </div>
+        
+        <div class="user-section">
+            <div class="user-icon">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="username">{{ current_user.username }}</div>
+        </div>
+    </div>
+    
+    <div class="main">
+        <div class="top-bar">
+            <button class="logout-btn" title="Logout" onclick="location.href='{{ url_for('logout') }}'"> 
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-messages" id="chat-messages">
+                {% if show_welcome and history|length == 0 %}
+                    <div class="message bot-message welcome-message">
+                        <p>{{ welcome_message }}</p>
+                    </div>
+                {% else %}
+                    {% for message in history %}
+                        <div class="message {% if message.role == 'user' %}user-message{% else %}bot-message{% endif %}">
+                            <p>{{ message.content|safe }}</p>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <form class="message-form" id="messageForm">
+                <div class="message-icons">
+                    <i class="far fa-comment-dots"></i>
+                </div>
+                <textarea class="message-input" id="userInput" name="message" placeholder="{{ placeholder }}" rows="1"></textarea>
+                <button type="submit" class="send-btn" id="sendBtn" disabled>
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageForm = document.getElementById('messageForm');
+            const userInput = document.getElementById('userInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const chatContainer = document.getElementById('chatContainer');
+            const clearChatBtn = document.getElementById('clearChat');
+            const modelSelector = document.getElementById('modelSelector');
+            const savedChatsList = document.getElementById('savedChatsList');
+            
+            // Auto-resize textarea as user types
+            userInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+                sendBtn.disabled = this.value.trim() === '';
+            });
+            
+            // Load user's preferred model
+            fetch('{{ url_for("get_models") }}')
+                .then(response => response.json())
+                .then(data => {
+                    modelSelector.value = data.preferred_model;
+                });
+            
+            // Load saved chats
+            function loadSavedChats() {
+                fetch('{{ url_for("get_saved_chats") }}')
+                    .then(response => response.json())
+                    .then(data => {
+                        savedChatsList.innerHTML = '';
+                        data.chats.forEach(chat => {
+                            const chatItem = document.createElement('div');
+                            chatItem.className = 'saved-chat-item';
+                            chatItem.innerHTML = `
+                                <i class="far fa-comment"></i>
+                                <span>${chat.name}</span>
+                            `;
+                            chatItem.addEventListener('click', () => loadChat(chat.id));
+                            savedChatsList.appendChild(chatItem);
+                        });
+                    });
+            }
+            
+            loadSavedChats();
+            
+            function loadChat(chatId) {
+                fetch(`{{ url_for("load_chat", chat_id=0) }}`.replace('0', chatId))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const chatHistory = JSON.parse(data.content);
+                            displayLoadedChat(chatHistory);
+                        }
+                    });
+            }
+            
+            function displayLoadedChat(chatHistory) {
+                chatContainer.innerHTML = '';
+                chatHistory.forEach(msg => {
+                    appendMessage(msg.role, msg.content);
+                });
+                
+                // Scroll to bottom
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            
+            // Handle model selection change
+            modelSelector.addEventListener('change', function() {
+                fetch('{{ url_for("set_model") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: 'model_id=' + this.value
+                })
+                .then(response => response.json())
+                .then(data => console.log('Model set:', data));
+            });
+            
+            // Clear chat
+            clearChatBtn.addEventListener('click', function() {
+                fetch('{{ url_for("clear_chat") }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(() => {
+                    chatContainer.innerHTML = `
+                        <div class="welcome-screen">
+                            <h1>{{ welcome_message }}</h1>
+                        </div>
+                    `;
+                });
+            });
+            
+            // Function to append message to chat
+            function appendMessage(role, content) {
+                const messageContainer = document.createElement('div');
+                messageContainer.className = `message-container ${role}-message`;
+                
+                const iconClass = role === 'user' ? 'user-icon-message' : 'bot-icon-message';
+                const icon = role === 'user' ? 'fas fa-user' : 'fas fa-robot';
+                
+                messageContainer.innerHTML = `
+                    <div class="message-icon ${iconClass}">
+                        <i class="${icon}"></i>
+                    </div>
+                    <div class="message-content">${content}</div>
+                `;
+                
+                chatContainer.appendChild(messageContainer);
+            }
+            
+            // Handle form submission
+            messageForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const message = userInput.value.trim();
+                if (!message) return;
+                
+                // Append user message
+                appendMessage('user', message);
+                
+                // Clear input and reset height
+                userInput.value = '';
+                userInput.style.height = 'auto';
+                sendBtn.disabled = true;
+                
+                // Create typing indicator
+                const typingContainer = document.createElement('div');
+                typingContainer.className = 'message-container bot-message';
+                typingContainer.innerHTML = `
+                    <div class="message-icon bot-icon-message">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <div class="typing-indicator">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+                `;
+                chatContainer.appendChild(typingContainer);
+                
+                // Scroll to bottom
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                
+                // Send message to server
+                fetch('{{ url_for("chat") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: `message=${encodeURIComponent(message)}&model=${modelSelector.value}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove typing indicator
+                    chatContainer.removeChild(typingContainer);
+                    
+                    // Append bot response
+                    appendMessage('assistant', data.response);
+                    
+                    // Scroll to bottom
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                    
+                    // Save chat option (after a reasonable chat length)
+                    const messageContainers = document.querySelectorAll('.message-container');
+                    if (messageContainers.length >= 4) {
+                        showSaveChatOption();
+                    }
+                })
+                .catch(error => {
+                    // Remove typing indicator
+                    chatContainer.removeChild(typingContainer);
+                    // Show error message
+                    appendMessage('assistant', 'Sorry, I encountered an error. Please try again.');
+                    console.error('Error:', error);
+                });
+            });
+            
+            function showSaveChatOption() {
+                // Check if save button already exists
+                if (document.getElementById('saveChatBtn')) return;
+                
+                const saveBtn = document.createElement('button');
+                saveBtn.id = 'saveChatBtn';
+                saveBtn.className = 'new-chat-btn';
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save this chat';
+                saveBtn.style.backgroundColor = 'var(--chatgpt-green)';
+                saveBtn.style.color = 'white';
+                saveBtn.style.border = 'none';
+                
+                saveBtn.addEventListener('click', function() {
+                    const chatName = prompt('Enter a name for this chat:');
+                    if (chatName) {
+                        // We don't need to gather messages here as server will get them from DB
+                        fetch('{{ url_for("save_chat") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: `name=${encodeURIComponent(chatName)}`
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Chat saved successfully!');
+                                loadSavedChats(); // Refresh the saved chats list
+                            } else {
+                                alert('Failed to save chat: ' + data.error);
+                            }
+                        });
+                    }
+                });
+                
+                // Insert after the clear chat button
+                clearChatBtn.parentNode.insertBefore(saveBtn, clearChatBtn.nextSibling);
+            }
+            
+            // Auto-focus input when page loads
+            userInput.focus();
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageInput = document.querySelector('#message');  // Adjust this selector to match your textarea/input id
+            
+            if (messageInput) {
+                messageInput.addEventListener('keydown', function(e) {
+                    // If Enter is pressed without Shift key
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();  // Prevent default behavior (newline)
+                        
+                        // Submit the form
+                        const form = messageInput.closest('form');
+                        if (form) {
+                            // If using AJAX submission
+                            if (typeof sendMessage === 'function') {
+                                sendMessage();
+                            } else {
+                                // Traditional form submission
+                                form.submit();
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+
+    <!-- Server status monitoring script -->
+    <script src="{{ url_for('static', filename='server-monitor.js') }}"></script>
+</body>
+</html>

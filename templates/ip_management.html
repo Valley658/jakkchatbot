@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Management</title>
+    <link rel="stylesheet" href="{{ css_url }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #10a37f;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .top-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            background-color: #10a37f;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .back-btn:hover {
+            background-color: #0c8e6e;
+        }
+        
+        .form-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .ip-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .ip-table th, .ip-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e1e1e1;
+        }
+        
+        .ip-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        
+        .ip-table tr:hover {
+            background-color: #f8f8f8;
+        }
+        
+        .whitelist {
+            color: #10a37f;
+            font-weight: bold;
+        }
+        
+        .blacklist {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #e74c3c;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash-message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        /* Dark mode styling */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1e1e1e;
+                color: #e0e0e0;
+            }
+            
+            .section {
+                background-color: #252525;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+            
+            .ip-table th {
+                background-color: #333;
+            }
+            
+            .ip-table td {
+                border-bottom: 1px solid #444;
+            }
+            
+            .ip-table tr:hover {
+                background-color: #333;
+            }
+            
+            .form-container {
+                background-color: #333;
+                border-color: #555;
+            }
+            
+            .form-group input, .form-group textarea {
+                background-color: #444;
+                color: #e0e0e0;
+                border-color: #555;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>IP 관리</h1>
+        
+        <div class="top-actions">
+            <a href="{{ url_for('admin_panel') }}" class="back-btn">
+                <i class="fas fa-arrow-left"></i> 관리자 패널로 돌아가기
+            </a>
+        </div>
+        
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="flash-messages">
+            {% for message in messages %}
+              <div class="flash-message">{{ message }}</div>
+            {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        
+        <div class="section">
+            <h2>IP 추가</h2>
+            
+            <div class="form-row">
+                <div class="form-container">
+                    <h3>화이트리스트에 추가</h3>
+                    <form action="{{ url_for('whitelist_ip') }}" method="post">
+                        <div class="form-group">
+                            <label for="whitelist-ip">IP 주소</label>
+                            <input type="text" id="whitelist-ip" name="ip" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="whitelist-notes">메모</label>
+                            <textarea id="whitelist-notes" name="notes" rows="2"></textarea>
+                        </div>
+                        <button type="submit" class="back-btn">화이트리스트 추가</button>
+                    </form>
+                </div>
+                
+                <div class="form-container">
+                    <h3>블랙리스트에 추가</h3>
+                    <form action="{{ url_for('blacklist_ip') }}" method="post">
+                        <div class="form-group">
+                            <label for="blacklist-ip">IP 주소</label>
+                            <input type="text" id="blacklist-ip" name="ip" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="blacklist-notes">메모</label>
+                            <textarea id="blacklist-notes" name="notes" rows="2"></textarea>
+                        </div>
+                        <button type="submit" class="back-btn" style="background-color: #e74c3c;">블랙리스트 추가</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>화이트리스트 IP ({{ whitelist|length }})</h2>
+            <table class="ip-table">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>상태</th>
+                        <th>시간</th>
+                        <th>시도 횟수</th>
+                        <th>메모</th>
+                        <th>액션</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip in whitelist %}
+                    <tr>
+                        <td>{{ ip.ip }}</td>
+                        <td class="whitelist">{{ ip.status }}</td>
+                        <td>{{ ip.timestamp }}</td>
+                        <td>{{ ip.attempts }}</td>
+                        <td>{{ ip.notes or '-' }}</td>
+                        <td>
+                            <form action="{{ url_for('delete_ip', ip_id=ip.id) }}" method="post" 
+                                  onsubmit="return confirm('정말로 이 IP 기록을 삭제하시겠습니까?');">
+                                <button type="submit" class="action-btn" title="삭제">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center;">화이트리스트에 등록된 IP가 없습니다.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section">
+            <h2>블랙리스트 IP ({{ blacklist|length }})</h2>
+            <table class="ip-table">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>상태</th>
+                        <th>시간</th>
+                        <th>시도 횟수</th>
+                        <th>메모</th>
+                        <th>액션</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip in blacklist %}
+                    <tr>
+                        <td>{{ ip.ip }}</td>
+                        <td class="blacklist">{{ ip.status }}</td>
+                        <td>{{ ip.timestamp }}</td>
+                        <td>{{ ip.attempts }}</td>
+                        <td>{{ ip.notes or '-' }}</td>
+                        <td>
+                            <form action="{{ url_for('delete_ip', ip_id=ip.id) }}" method="post" 
+                                  onsubmit="return confirm('정말로 이 IP 기록을 삭제하시겠습니까?');">
+                                <button type="submit" class="action-btn" title="삭제">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center;">블랙리스트에 등록된 IP가 없습니다.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Server status monitoring script -->
+    <script src="{{ url_for('static', filename='server-monitor.js') }}"></script>
+</body>
+</html>

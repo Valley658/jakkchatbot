@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #f7f7f8;
+            color: #343541;
+        }
+
+        .error-container {
+            text-align: center;
+            padding: 40px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 90%;
+            margin-top: 70px;
+        }
+
+        .error-code {
+            font-size: 120px;
+            font-weight: bold;
+            color: #e74c3c;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .error-title {
+            font-size: 28px;
+            margin: 20px 0;
+        }
+
+        .error-message {
+            font-size: 18px;
+            color: #6e6e80;
+            margin-bottom: 30px;
+        }
+
+        .error-icon {
+            font-size: 80px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+
+        /* Notices styling */
+        #scrolling-notice {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background-color: black;
+            color: white;
+            font-weight: bold;
+            overflow: hidden;
+            white-space: nowrap;
+            height: 30px;
+            line-height: 30px;
+        }
+        
+        #scrolling-notice span {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scroll-left 10s linear infinite;
+        }
+        
+        @keyframes scroll-left {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        
+        #notice {
+            position: fixed;
+            top: 35px;
+            width: 100%;
+            text-align: center;
+            color: red;
+            font-weight: bold;
+            font-size: 25px;
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1e1e1e;
+                color: #e0e0e0;
+            }
+            
+            .error-container {
+                background-color: #252525;
+            }
+            
+            .error-message {
+                color: #b0b0b0;
+            }
+        }
+    </style>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var userLang = navigator.language || navigator.userLanguage;
+            var notice = document.getElementById("notice");
+            var scrollingNotice = document.getElementById("scrolling-notice-text");
+            var errorTitle = document.getElementById("error-title");
+            var errorMessage = document.getElementById("error-message");
+            
+            var messages = {
+                "ko": "이 사이트를 해킹하려는 시도가 감지되었습니다. IP가 차단되었습니다.",
+                "es": "Se ha detectado un intento de hacking en este sitio. Su IP ha sido bloqueada.",
+                "fr": "Une tentative de piratage de ce site a été détectée. Votre IP a été bloquée.",
+                "de": "Ein Versuch, diese Website zu hacken, wurde erkannt. Ihre IP wurde blockiert.",
+                "zh": "检测到黑客攻击此网站的企图。您的IP已被封锁。",
+                "default": "An attempt to hack this site has been detected. Your IP has been blocked."
+            };
+            
+            var errorTitles = {
+                "ko": "접근 거부됨",
+                "es": "Acceso denegado",
+                "fr": "Accès refusé",
+                "de": "Zugriff verweigert",
+                "zh": "拒绝访问",
+                "default": "Access Denied"
+            };
+            
+            var errorMessages = {
+                "ko": "보안 위반으로 인해 이 사이트에 대한 접근이 차단되었습니다.",
+                "es": "Su acceso a este sitio ha sido bloqueado debido a una violación de seguridad.",
+                "fr": "Votre accès à ce site a été bloqué en raison d'une violation de sécurité.",
+                "de": "Ihr Zugriff auf diese Website wurde aufgrund eines Sicherheitsverstoßes blockiert.",
+                "zh": "由于安全违规，您对此网站的访问已被阻止。",
+                "default": "Your access to this site has been blocked due to a security violation."
+            };
+            
+            var scrollingMessage = "Security Alert: Unauthorized access detected. IP has been logged and blocked.";
+            var lang = userLang.split('-')[0];
+            
+            notice.textContent = messages[lang] || messages["default"];
+            scrollingNotice.textContent = scrollingMessage;
+            errorTitle.textContent = errorTitles[lang] || errorTitles["default"];
+            errorMessage.textContent = errorMessages[lang] || errorMessages["default"];
+        });
+    </script>
+</head>
+<body>
+    <div id="scrolling-notice"><span id="scrolling-notice-text"></span></div>
+    <div id="notice"></div>
+    
+    <div class="error-container">
+        <div class="robot-animation">
+            <i class="fas fa-ban error-icon"></i>
+        </div>
+        <h1 class="error-code">403</h1>
+        <h2 class="error-title" id="error-title">Access Denied</h2>
+        <p class="error-message" id="error-message">Your access to this site has been blocked due to a security violation.</p>
+    </div>
+</body>
+</html>

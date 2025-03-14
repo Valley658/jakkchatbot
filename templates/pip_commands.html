@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pip Commands Reference</title>
+    <link rel="stylesheet" href="{{ css_url }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #10a37f;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #10a37f;
+            border-bottom: 2px solid #10a37f;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        
+        .command-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .command-table th, .command-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e1e1e1;
+        }
+        
+        .command-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        
+        .command-table tr:hover {
+            background-color: #f8f8f8;
+        }
+        
+        .command {
+            font-family: monospace;
+            background-color: #f0f0f0;
+            padding: 5px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            background-color: #10a37f;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 20px;
+            float: right;
+        }
+        
+        .back-btn:hover {
+            background-color: #0c8e6e;
+        }
+        
+        /* Dark mode styling */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1e1e1e;
+                color: #e0e0e0;
+            }
+            
+            .section {
+                background-color: #252525;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+            
+            .command-table th {
+                background-color: #333;
+            }
+            
+            .command-table td {
+                border-bottom: 1px solid #444;
+            }
+            
+            .command-table tr:hover {
+                background-color: #333;
+            }
+            
+            .command {
+                background-color: #333;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pip 명령어 모음</h1>
+        
+        {% for section_name, section_commands in commands.items() %}
+        <div class="section">
+            <h2>{{ section_name }}</h2>
+            <table class="command-table">
+                <thead>
+                    <tr>
+                        <th>명령어</th>
+                        <th>설명</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cmd in section_commands %}
+                    <tr>
+                        <td><code class="command">{{ cmd.command }}</code></td>
+                        <td>{{ cmd.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+        
+        <a href="{{ url_for('admin_panel') }}" class="back-btn">관리자 패널로 돌아가기</a>
+    </div>
+
+    <!-- Server status monitoring script -->
+    <script src="{{ url_for('static', filename='server-monitor.js') }}"></script>
+</body>
+</html>

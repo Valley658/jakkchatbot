@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #f7f7f8;
+            color: #343541;
+        }
+
+        .error-container {
+            text-align: center;
+            padding: 40px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 90%;
+            margin-top: 70px; /* Make room for the notices */
+        }
+
+        .error-code {
+            font-size: 120px;
+            font-weight: bold;
+            color: #10a37f;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .error-title {
+            font-size: 28px;
+            margin: 20px 0;
+        }
+
+        .error-message {
+            font-size: 18px;
+            color: #6e6e80;
+            margin-bottom: 30px;
+        }
+
+        .error-icon {
+            font-size: 80px;
+            color: #10a37f;
+            margin-bottom: 20px;
+        }
+
+        .home-button {
+            display: inline-block;
+            background-color: #10a37f;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+
+        .home-button:hover {
+            background-color: #0c8e6e;
+        }
+
+        .robot-animation {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .error-code {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Notices styling */
+        #scrolling-notice {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background-color: black;
+            color: white;
+            font-weight: bold;
+            overflow: hidden;
+            white-space: nowrap;
+            height: 30px;
+            line-height: 30px;
+        }
+        
+        #scrolling-notice span {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scroll-left 10s linear infinite;
+        }
+        
+        @keyframes scroll-left {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        
+        #notice {
+            position: fixed;
+            top: 35px;
+            width: 100%;
+            text-align: center;
+            color: red;
+            font-weight: bold;
+            font-size: 25px;
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1e1e1e;
+                color: #e0e0e0;
+            }
+            
+            .error-container {
+                background-color: #252525;
+            }
+            
+            .error-message {
+                color: #b0b0b0;
+            }
+        }
+    </style>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var userLang = navigator.language || navigator.userLanguage;
+            var notice = document.getElementById("notice");
+            var scrollingNotice = document.getElementById("scrolling-notice-text");
+            var errorTitle = document.getElementById("error-title");
+            var errorMessage = document.getElementById("error-message");
+            var homeButton = document.getElementById("home-button");
+            
+            var messages = {
+                "ko": "여러분 이 사이트를 해킹하지 마세요 해킹을 하면 업데이트가 느려집니다!",
+                "es": "Por favor, no hackees este sitio. ¡Hacerlo ralentizará las actualizaciones!",
+                "fr": "Veuillez ne pas pirater ce site. Le piratage ralentira les mises à jour!",
+                "de": "Bitte hacken Sie diese Seite nicht. Hacking wird Updates verlangsamen!",
+                "zh": "请不要黑这个网站。黑客攻击会减慢更新速度！",
+                "default": "Please do not hack this site. Hacking will slow down updates!"
+            };
+            
+            var errorTitles = {
+                "ko": "페이지를 찾을 수 없습니다",
+                "es": "Página no encontrada",
+                "fr": "Page non trouvée",
+                "de": "Seite nicht gefunden",
+                "zh": "找不到页面",
+                "default": "Page Not Found"
+            };
+            
+            var errorMessages = {
+                "ko": "요청하신 페이지가 존재하지 않거나, 이동되었거나, 삭제되었을 수 있습니다.",
+                "es": "Lo sentimos, la página que estás buscando no existe.",
+                "fr": "Désolé, la page que vous recherchez n'existe pas.",
+                "de": "Die von Ihnen gesuchte Seite existiert leider nicht.",
+                "zh": "抱歉，您正在寻找的页面不存在。",
+                "default": "Sorry, the page you are looking for does not exist."
+            };
+            
+            var homeButtons = {
+                "ko": "홈으로 돌아가기",
+                "es": "Volver al inicio",
+                "fr": "Retour à l'accueil",
+                "de": "Zurück zur Startseite",
+                "zh": "返回首页",
+                "default": "Go to Home"
+            };
+            
+            var scrollingMessage = "This site is preparing for a major update. Please be patient!";
+            var lang = userLang.split('-')[0];
+            
+            notice.textContent = messages[lang] || messages["default"];
+            scrollingNotice.textContent = scrollingMessage;
+            errorTitle.textContent = errorTitles[lang] || errorTitles["default"];
+            errorMessage.textContent = errorMessages[lang] || errorMessages["default"];
+            homeButton.innerHTML = '<i class="fas fa-home"></i> ' + (homeButtons[lang] || homeButtons["default"]);
+        });
+    </script>
+</head>
+<body>
+    <div id="scrolling-notice"><span id="scrolling-notice-text"></span></div>
+    <div id="notice"></div>
+    
+    <div class="error-container">
+        <div class="robot-animation">
+            <i class="fas fa-robot error-icon"></i>
+        </div>
+        <h1 class="error-code">404</h1>
+        <h2 class="error-title" id="error-title">페이지를 찾을 수 없습니다</h2>
+        <p class="error-message" id="error-message">요청하신 페이지가 존재하지 않거나, 이동되었거나, 삭제되었을 수 있습니다.</p>
+        <a href="{{ url_for('index') }}" class="home-button" id="home-button">
+            <i class="fas fa-home"></i> 홈으로 돌아가기
+        </a>
+    </div>
+
+    <!-- Server status monitoring script -->
+    <script src="{{ url_for('static', filename='server-monitor.js') }}"></script>
+</body>
+</html>
