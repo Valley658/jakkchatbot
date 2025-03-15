@@ -21,6 +21,7 @@ import tensorflow as tf
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session, declarative_base
 import sqlite3
+from flask_socketio import SocketIO
 
 # Check for GPU availability and video memory size
 def set_device():
@@ -41,10 +42,10 @@ def set_device():
 
 set_device()
 
-# Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
+socketio = SocketIO(app, async_mode='eventlet')  # Specify async_mode as eventlet
 
 # Configure OpenAI API
 try:
@@ -66,9 +67,15 @@ def generate_secret_key():
     return base64.b64encode(os.urandom(24)).decode('utf-8')
 
 app.config['SECRET_KEY'] = generate_secret_key()
-# Change database path to be in the instance folder
+
+# Configure three separate databases
 app.config['INSTANCE_PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(app.config["INSTANCE_PATH"], "chat_database.db")}'
+# User data database (accounts, preferences)
+app.config['USER_DATABASE_URI'] = f'sqlite:///{os.path.join(app.config["INSTANCE_PATH"], "data_database.db")}'
+# Chat data database (messages, conversations)
+app.config['CHAT_DATABASE_URI'] = f'sqlite:///{os.path.join(app.config["INSTANCE_PATH"], "chat_data.db")}'
+# IP address database (whitelist, blacklist)
+app.config['IP_DATABASE_URI'] = f'sqlite:///{os.path.join(app.config["INSTANCE_PATH"], "ip_data_database.db")}'
 app.config['UPLOAD_FOLDER'] = os.path.join(app.config['INSTANCE_PATH'], 'uploads')
 app.config['COOKIE_SECRET'] = generate_secret_key()
 
@@ -93,15 +100,18 @@ GPT_MODELS = [
     {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "description": "Faster and more economical"}
 ]
 
-Base = declarative_base()
+# Create separate base classes for the three databases
+UserBase = declarative_base()
+ChatBase = declarative_base()
+IPBase = declarative_base()
 
-class User(UserMixin, Base):
+class User(UserMixin, UserBase):
     __tablename__ = 'user'
     id = Column(Integer, primary_key=True)
-    username = Column(String(150), unique=True, nullable=False)
-    display_name = Column(String(150), nullable=True)  # Add display_name field
-    password = Column(String(150), nullable=False)
-    tts_enabled = Column(Boolean, default=True)
+    username = Column(String(150), unique=True, nullable=False)  # Plaintext username
+    display_name = Column(String(150), nullable=True)
+    password = Column(String(150), nullable=False)  # Encrypted password
+    tts_enabled = Column(Boolean, default=False)
     preferred_model = Column(String(50), default="gpt-4o")
     
     def set_password(self, password):
@@ -116,45 +126,22 @@ class User(UserMixin, Base):
             # If there's a hash type error, return False to prompt re-login
             print("Password hash format error - consider resetting the user's password")
             return False
-        
-    def set_username(self, username):
-        self.display_name = username  # Store original username
-        # Encrypt username in the database
-        self.username = hashlib.sha256(username.encode()).hexdigest()
 
-# Additional model to store chat messages in the database instead of memory
-class ChatMessage(Base):
-    __tablename__ = 'chat_message'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    role = Column(String(20), nullable=False)  # 'user' or 'assistant'
-    content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, default=dt.utcnow)
-    chat_session = Column(String(50), nullable=False)  # To group messages by session
-
-class UserCookie(Base):
+class UserCookie(UserBase):
     __tablename__ = 'user_cookie'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     cookie_data = Column(String(500), nullable=False)
 
-class UserLanguage(Base):
+class UserLanguage(UserBase):
     __tablename__ = 'user_language'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     language = Column(String(50), nullable=False)
     computer_name = Column(String(150), nullable=False)
 
-class SavedChat(Base):
-    __tablename__ = 'saved_chat'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    name = Column(String(200), nullable=False)
-    content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, default=dt.utcnow)
-
-# Add a model for IP addresses
-class IPAddress(Base):
+# Move IP address model to the IP database
+class IPAddress(IPBase):
     __tablename__ = 'ip_address'
     id = Column(Integer, primary_key=True)
     ip = Column(String(50), unique=True, nullable=False)
@@ -163,43 +150,78 @@ class IPAddress(Base):
     attempts = Column(Integer, default=0)
     notes = Column(String(255), nullable=True)
 
-# Initialize SQLAlchemy
-engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
-db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
-Base.query = db_session.query_property()
+# Chat-related models in chat_data.db
+class ChatMessage(ChatBase):
+    __tablename__ = 'chat_message'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)  # Foreign key to user table, but no constraint across DBs
+    role = Column(String(20), nullable=False)  # 'user' or 'assistant'
+    content = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=dt.utcnow)
+    chat_session = Column(String(50), nullable=False)  # To group messages by session
 
-# Initialize database
+class SavedChat(ChatBase):
+    __tablename__ = 'saved_chat'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)  # Foreign key to user table, but no constraint across DBs
+    name = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=dt.utcnow)
+
+# Initialize SQLAlchemy with three separate engines
+user_engine = create_engine(app.config['USER_DATABASE_URI'])
+chat_engine = create_engine(app.config['CHAT_DATABASE_URI'])
+ip_engine = create_engine(app.config['IP_DATABASE_URI'])
+
+user_db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=user_engine))
+chat_db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=chat_engine))
+ip_db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=ip_engine))
+
+UserBase.query = user_db_session.query_property()
+ChatBase.query = chat_db_session.query_property()
+IPBase.query = ip_db_session.query_property()
+
+# Initialize databases
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    # Create tables in all three databases
+    UserBase.metadata.create_all(bind=user_engine)
+    ChatBase.metadata.create_all(bind=chat_engine)
+    IPBase.metadata.create_all(bind=ip_engine)
+    print("All databases initialized")
 
-# Function to recreate admin user with correct password hash
+# Modified function to recreate admin user with plaintext username
 def recreate_admin_user():
-    # Check if admin exists
-    admin = db_session.query(User).filter_by(username=hashlib.sha256('admin'.encode()).hexdigest()).first()
+    # Check if admin exists using plaintext username
+    admin = user_db_session.query(User).filter_by(username='admin').first()
     
     if admin:
         # Update admin's password hash to use sha256 method
         admin.password = generate_password_hash('reewskali15@gm', method='sha256')
-        db_session.commit()
+        admin.tts_enabled = False  # Set TTS disabled by default
+        admin.display_name = 'admin'  # Set display name explicitly
+        user_db_session.commit()
         print("Admin password hash updated to sha256")
     else:
-        # Create new admin user
+        # Create new admin user with plaintext username
         admin = User()
-        admin.set_username('admin')
+        admin.username = 'admin'  # Set plaintext username
+        admin.display_name = 'admin'
         admin.set_password('reewskali15@gm')  # This now uses sha256
-        admin.tts_enabled = True
+        admin.tts_enabled = False  # Set TTS disabled by default
         admin.preferred_model = "gpt-4o"
-        db_session.add(admin)
-        db_session.commit()
+        user_db_session.add(admin)
+        user_db_session.commit()
         print("Admin account created with sha256 hash")
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db_session.get(User, int(user_id))
+    return user_db_session.get(User, int(user_id))
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-    db_session.remove()
+    user_db_session.remove()
+    chat_db_session.remove()
+    ip_db_session.remove()
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
@@ -208,7 +230,7 @@ def static_files(filename):
 # Replace in-memory chat storage with database functions
 def get_chat_history(user_id, session_id='default'):
     """Get chat history from database for a user"""
-    messages = db_session.query(ChatMessage).filter_by(
+    messages = chat_db_session.query(ChatMessage).filter_by(
         user_id=user_id,
         chat_session=session_id
     ).order_by(ChatMessage.timestamp).all()
@@ -223,29 +245,33 @@ def add_chat_message(user_id, role, content, session_id='default'):
         content=content,
         chat_session=session_id
     )
-    db_session.add(message)
-    db_session.commit()
+    chat_db_session.add(message)
+    chat_db_session.commit()
 
 def clear_chat_history(user_id, session_id='default'):
     """Clear chat history from database for a user"""
-    db_session.query(ChatMessage).filter_by(
+    chat_db_session.query(ChatMessage).filter_by(
         user_id=user_id,
         chat_session=session_id
     ).delete()
-    db_session.commit()
+    chat_db_session.commit()
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
     error_message = None
     if form.validate_on_submit():
-        user = db_session.query(User).filter_by(username=hashlib.sha256(form.username.data.encode()).hexdigest()).first()
+        # Use user_db_session for user authentication with plaintext username
+        user = user_db_session.query(User).filter_by(username=form.username.data).first()
         if user is None:
-            error_message = "Username or password does not exist."
+            error_message = "Username does not exist."
+            print(f"Login failed: Username '{form.username.data}' not found")
         elif not user.check_password(form.password.data):
             error_message = "Incorrect password."
+            print(f"Login failed: Incorrect password for '{form.username.data}'")
         else:
             login_user(user)
+            print(f"Login successful for user: {form.username.data}")
             
             # Detect browser language and system language
             browser_lang = request.accept_languages.best_match(['en', 'ko', 'ja', 'zh', 'es', 'fr', 'de', 'ru', 'pt', 'it']) or 'en'
@@ -254,16 +280,16 @@ def login():
             
             # Save language selection to the database
             user_language = UserLanguage(user_id=current_user.id, language=system_language, computer_name=computer_name)
-            db_session.add(user_language)
-            db_session.commit()
+            user_db_session.add(user_language)
+            user_db_session.commit()
 
             # Update display_name if it's not set (for backward compatibility)
             if not user.display_name and form.username.data:
                 user.display_name = form.username.data
-                db_session.commit()
+                user_db_session.commit()
 
-            if current_user.username == hashlib.sha256('admin'.encode()).hexdigest():
-                return redirect(url_for('dashboard'))
+            if current_user.username == 'admin':
+                return redirect(url_for('admin_panel'))  # Redirect to admin_panel instead of dashboard
             else:
                 return redirect(url_for('chat', language=system_language))
     return render_template('login.html', form=form, error_message=error_message, css_url=url_for('static', filename='style.css'))
@@ -280,11 +306,11 @@ def chat():
     # Get language preference from URL or database or browser
     language = request.args.get('language')
     if not language:
-        user_language = db_session.query(UserLanguage).filter_by(user_id=current_user.id).order_by(UserLanguage.id.desc()).first()
+        user_language = user_db_session.query(UserLanguage).filter_by(user_id=current_user.id).order_by(UserLanguage.id.desc()).first()
         language = user_language.language if user_language else browser_lang
     
     # Get user preferencesew chat request
-    user = db_session.get(User, current_user.id)
+    user = user_db_session.get(User, current_user.id)
     tts_enabled = user.tts_enabled
     model_preference = user.preferred_model
     display_name = user.display_name  # Get the decoded username
@@ -434,32 +460,99 @@ def system_status():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    if current_user.username == hashlib.sha256('admin'.encode()).hexdigest():
-        users = db_session.query(User).all()
-        user_languages = db_session.query(UserLanguage).all()
-        memory_info = psutil.virtual_memory()  # Add this line to get memory info
-        status = "Normal"  # Define the status variable
-        return render_template('dashboard.html', users=users, user_languages=user_languages, css_url=url_for('static', filename='style.css'), status=status, memory_info=memory_info)
+    if current_user.username == 'admin':
+        users = user_db_session.query(User).all()
+        user_languages = user_db_session.query(UserLanguage).all()
+        memory_info = psutil.virtual_memory()
+        cpu_info = psutil.cpu_percent(interval=1)
+        disk_info = psutil.disk_usage('/')
+        
+        # Get total user count and message count
+        user_count = user_db_session.query(User).count()
+        message_count = chat_db_session.query(ChatMessage).count()
+        
+        # Get recent logins (last 10)
+        recent_languages = user_db_session.query(UserLanguage).order_by(UserLanguage.id.desc()).limit(10).all()
+        
+        status = "Normal" if cpu_info < 80 and memory_info.percent < 80 else "Warning"
+        return render_template('dashboard.html', 
+                              users=users, 
+                              user_languages=user_languages, 
+                              css_url=url_for('static', filename='style.css'), 
+                              status=status, 
+                              memory_info=memory_info,
+                              cpu_info=cpu_info,
+                              disk_info=disk_info,
+                              user_count=user_count,
+                              message_count=message_count,
+                              recent_languages=recent_languages)
     return redirect(url_for('chat'))
 
 @app.route('/admin_panel')
 @login_required
 def admin_panel():
-    if current_user.username == hashlib.sha256('admin'.encode()).hexdigest():
-        return render_template('admin_panel.html', css_url=url_for('static', filename='style.css'))
+    if current_user.username == 'admin':
+        # Get system stats for admin panel
+        memory_info = psutil.virtual_memory()
+        cpu_info = psutil.cpu_percent(interval=1)
+        disk_info = psutil.disk_usage('/')
+        
+        # Count users and messages
+        user_count = user_db_session.query(User).count()
+        message_count = chat_db_session.query(ChatMessage).count()
+        chat_count = chat_db_session.query(SavedChat).count()
+        
+        # Count blocked IPs
+        blocked_ip_count = ip_db_session.query(IPAddress).filter_by(status='blacklist').count()
+        
+        # Recent activity (last 5 logins)
+        recent_logins = user_db_session.query(UserLanguage).order_by(UserLanguage.id.desc()).limit(5).all()
+        
+        return render_template('admin_panel.html', 
+                              css_url=url_for('static', filename='style.css'),
+                              memory_info=memory_info,
+                              cpu_info=cpu_info,
+                              disk_info=disk_info,
+                              user_count=user_count,
+                              message_count=message_count,
+                              chat_count=chat_count,
+                              blocked_ip_count=blocked_ip_count,
+                              recent_logins=recent_logins)
     return redirect(url_for('chat'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User(username=hashlib.sha256(form.username.data.encode()).hexdigest())
-        user.display_name = form.username.data  # Store the display name
-        user.set_password(form.password.data)
-        db_session.add(user)
-        db_session.commit()
-        flash('Registration successful. Please log in.')
-        return redirect(url_for('login'))
+        # Check if username already exists (using plaintext username now)
+        existing_user = user_db_session.query(User).filter_by(
+            username=form.username.data
+        ).first()
+        
+        if existing_user:
+            flash('Username already exists. Please choose a different one.')
+            return render_template('register.html', form=form, css_url=url_for('static', filename='style.css'))
+        
+        # Create new user with plaintext username
+        user = User()
+        user.username = form.username.data
+        user.display_name = form.username.data
+        user.set_password(form.password.data)  # Only password is hashed
+        user.tts_enabled = False
+        user.preferred_model = "gpt-4o"
+        
+        # Add to database
+        try:
+            user_db_session.add(user)
+            user_db_session.commit()
+            flash('Registration successful. Please log in.')
+            print(f"User registered: {user.username}")
+            return redirect(url_for('login'))
+        except Exception as e:
+            user_db_session.rollback()
+            flash(f'Error during registration: {str(e)}')
+            print(f"Registration error: {str(e)}")
+    
     return render_template('register.html', form=form, css_url=url_for('static', filename='style.css'))
 
 @app.route('/logout')
@@ -472,9 +565,9 @@ def logout():
 @login_required
 def toggle_tts():
     """Toggle text-to-speech for the current user"""
-    user = db_session.get(User, current_user.id)
+    user = user_db_session.get(User, current_user.id)
     user.tts_enabled = not user.tts_enabled
-    db_session.commit()
+    user_db_session.commit()
     return jsonify({'success': True, 'tts_enabled': user.tts_enabled})
 
 @app.route('/set_model', methods=['POST'])
@@ -483,9 +576,9 @@ def set_model():
     """Set the preferred model for the current user"""
     model_id = request.form.get('model_id')
     if model_id:
-        user = db_session.get(User, current_user.id)
+        user = user_db_session.get(User, current_user.id)
         user.preferred_model = model_id
-        db_session.commit()
+        user_db_session.commit()
         return jsonify({'success': True, 'model': model_id})
     return jsonify({'success': False, 'error': 'Model ID required'})
 
@@ -493,7 +586,7 @@ def set_model():
 @login_required
 def get_models():
     """Get available models and user preference"""
-    user = db_session.get(User, current_user.id)
+    user = user_db_session.get(User, current_user.id)
     return jsonify({
         'models': GPT_MODELS,
         'preferred_model': user.preferred_model,
@@ -515,27 +608,33 @@ def save_chat():
     # Convert messages to json for storage
     chat_content = json.dumps(chat_messages)
     
-    # Save to database
-    new_chat = SavedChat(user_id=user_id, name=chat_name, content=chat_content)
-    db_session.add(new_chat)
-    db_session.commit()
-    
-    # Also save to file for backup
-    chat_dir = os.path.join(app.config['INSTANCE_PATH'], 'chat_history')
-    if not os.path.exists(chat_dir):
-        os.makedirs(chat_dir)
+    try:
+        # Save to chat database
+        new_chat = SavedChat(user_id=user_id, name=chat_name, content=chat_content)
+        chat_db_session.add(new_chat)
+        chat_db_session.commit()
         
-    filename = f"{user_id}_{chat_name}_{new_chat.id}.json"
-    with open(os.path.join(chat_dir, filename), 'w', encoding='utf-8') as f:
-        json.dump(chat_messages, f, ensure_ascii=False, indent=2)
+        # Also save to file for backup
+        chat_dir = os.path.join(app.config['INSTANCE_PATH'], 'chat_history')
+        if not os.path.exists(chat_dir):
+            os.makedirs(chat_dir)
+            
+        filename = f"{user_id}_{chat_name}_{new_chat.id}.json"
+        with open(os.path.join(chat_dir, filename), 'w', encoding='utf-8') as f:
+            json.dump(chat_messages, f, ensure_ascii=False, indent=2)
         
-    return jsonify({'success': True, 'id': new_chat.id})
+        print(f"Chat '{chat_name}' saved successfully for user {user_id}")
+        return jsonify({'success': True, 'id': new_chat.id})
+    except Exception as e:
+        chat_db_session.rollback()
+        print(f"Error saving chat: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/get_saved_chats', methods=['GET'])
 @login_required
 def get_saved_chats():
     """Get all saved chats for the current user"""
-    saved_chats = db_session.query(SavedChat).filter_by(user_id=current_user.id).order_by(SavedChat.timestamp.desc()).all()
+    saved_chats = chat_db_session.query(SavedChat).filter_by(user_id=current_user.id).order_by(SavedChat.timestamp.desc()).all()
     return jsonify({
         'chats': [{'id': chat.id, 'name': chat.name, 'timestamp': chat.timestamp.isoformat()} 
                  for chat in saved_chats]
@@ -545,7 +644,7 @@ def get_saved_chats():
 @login_required
 def load_chat(chat_id):
     """Load a specific saved chat"""
-    chat = db_session.query(SavedChat).get(chat_id)
+    chat = chat_db_session.query(SavedChat).get(chat_id)
     if not chat or chat.user_id != current_user.id:
         return jsonify({'success': False, 'error': 'Chat not found'})
     
@@ -595,15 +694,24 @@ def restrict_invalid_routes():
     valid_routes = [rule.rule for rule in app.url_map.iter_rules()]
     # Check if path is not a valid route and not a static file
     if request.path not in valid_routes and not request.path.startswith('/static/'):
-        # Use Flask's abort function to trigger the 404 error handler
-        abort(404)
+        # Automatically blacklist the IP for accessing invalid routes
+        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        
+        # Don't blacklist whitelisted IPs
+        if not is_ip_whitelisted(client_ip):
+            # Make banning more aggressive
+            ban_ip(client_ip, f"Automatic ban - Accessed invalid path: {request.path}")
+            # Log the attempt with more details
+            print(f"SECURITY ALERT: IP {client_ip} attempted to access invalid path: {request.path}")
+            app.logger.warning(f"Security breach attempt from {client_ip} on path {request.path}")
+            
+        # Redirect to 404 page
+        return redirect(url_for('page_not_found_route', _external=True))
 
 # Additional middleware to block .git access attempts
 @app.before_request
 def block_git_access():
-    """Block attempts to access .git directories"""
     if '.git' in request.path:
-        # Log the attempt
         client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
         print(f"Blocked .git access attempt from IP: {client_ip}, Path: {request.path}")
         # Return 404 error
@@ -612,30 +720,30 @@ def block_git_access():
 # Initialize whitelist with your IP if not exists
 def init_ip_whitelist():
     whitelist_ip = '121.137.65.116'
-    if not db_session.query(IPAddress).filter_by(ip=whitelist_ip).first():
+    if not ip_db_session.query(IPAddress).filter_by(ip=whitelist_ip).first():
         whitelisted = IPAddress(
             ip=whitelist_ip,
             status='whitelist',
             notes='Admin IP address'
         )
-        db_session.add(whitelisted)
-        db_session.commit()
+        ip_db_session.add(whitelisted)
+        ip_db_session.commit()
         print(f"Added {whitelist_ip} to whitelist")
 
 # Check if IP is whitelisted
 def is_ip_whitelisted(ip):
-    ip_record = db_session.query(IPAddress).filter_by(ip=ip, status='whitelist').first()
+    ip_record = ip_db_session.query(IPAddress).filter_by(ip=ip, status='whitelist').first()
     return ip_record is not None
 
 # Check if IP is blacklisted
 def is_ip_blacklisted(ip):
-    ip_record = db_session.query(IPAddress).filter_by(ip=ip, status='blacklist').first()
+    ip_record = ip_db_session.query(IPAddress).filter_by(ip=ip, status='blacklist').first()
     return ip_record is not None
 
 # Ban an IP
 def ban_ip(ip, reason="Unauthorized path access"):
     # Check if IP record exists
-    ip_record = db_session.query(IPAddress).filter_by(ip=ip).first()
+    ip_record = ip_db_session.query(IPAddress).filter_by(ip=ip).first()
     
     if ip_record:
         if ip_record.status == 'whitelist':
@@ -655,14 +763,14 @@ def ban_ip(ip, reason="Unauthorized path access"):
             attempts=1,
             notes=reason
         )
-        db_session.add(ip_record)
+        ip_db_session.add(ip_record)
     
-    db_session.commit()
+    ip_db_session.commit()
     print(f"Banned IP: {ip} - {reason}")
 
 # Track access attempt
 def track_ip_attempt(ip, path):
-    ip_record = db_session.query(IPAddress).filter_by(ip=ip).first()
+    ip_record = ip_db_session.query(IPAddress).filter_by(ip=ip).first()
     
     if ip_record:
         if ip_record.status == 'whitelist':
@@ -686,10 +794,10 @@ def track_ip_attempt(ip, path):
             attempts=1,
             notes=f"Banned after accessing invalid path: {path}"
         )
-        db_session.add(ip_record)
+        ip_db_session.add(ip_record)
         print(f"Banned new IP: {ip} after accessing invalid path: {path}")
     
-    db_session.commit()
+    ip_db_session.commit()
     return True  # IP is now banned
 
 # Replace the check_ip_ban middleware with database version
@@ -735,12 +843,12 @@ def page_not_found(e):
 @app.route('/admin/ip_management')
 @login_required
 def ip_management():
-    if current_user.username != hashlib.sha256('admin'.encode()).hexdigest():
+    if current_user.username != 'admin':
         abort(403)
         
     # Get all IPs from database
-    whitelist = db_session.query(IPAddress).filter_by(status='whitelist').all()
-    blacklist = db_session.query(IPAddress).filter_by(status='blacklist').order_by(IPAddress.timestamp.desc()).all()
+    whitelist = ip_db_session.query(IPAddress).filter_by(status='whitelist').all()
+    blacklist = ip_db_session.query(IPAddress).filter_by(status='blacklist').order_by(IPAddress.timestamp.desc()).all()
     
     return render_template('ip_management.html', 
                           whitelist=whitelist, 
@@ -751,7 +859,7 @@ def ip_management():
 @app.route('/admin/whitelist_ip', methods=['POST'])
 @login_required
 def whitelist_ip():
-    if current_user.username != hashlib.sha256('admin'.encode()).hexdigest():
+    if current_user.username != 'admin':
         abort(403)
         
     ip = request.form.get('ip')
@@ -762,7 +870,7 @@ def whitelist_ip():
         return redirect(url_for('ip_management'))
         
     # Check if IP exists
-    ip_record = db_session.query(IPAddress).filter_by(ip=ip).first()
+    ip_record = ip_db_session.query(IPAddress).filter_by(ip=ip).first()
     
     if ip_record:
         # Update existing record
@@ -776,9 +884,9 @@ def whitelist_ip():
             status='whitelist',
             notes=notes
         )
-        db_session.add(ip_record)
+        ip_db_session.add(ip_record)
         
-    db_session.commit()
+    ip_db_session.commit()
     flash(f'IP {ip} has been whitelisted')
     return redirect(url_for('ip_management'))
 
@@ -786,7 +894,7 @@ def whitelist_ip():
 @app.route('/admin/blacklist_ip', methods=['POST'])
 @login_required
 def blacklist_ip():
-    if current_user.username != hashlib.sha256('admin'.encode()).hexdigest():
+    if current_user.username != 'admin':
         abort(403)
         
     ip = request.form.get('ip')
@@ -802,7 +910,7 @@ def blacklist_ip():
         return redirect(url_for('ip_management'))
         
     # Check if IP exists
-    ip_record = db_session.query(IPAddress).filter_by(ip=ip).first()
+    ip_record = ip_db_session.query(IPAddress).filter_by(ip=ip).first()
     
     if ip_record:
         # Update existing record
@@ -816,9 +924,9 @@ def blacklist_ip():
             status='blacklist',
             notes=notes
         )
-        db_session.add(ip_record)
+        ip_db_session.add(ip_record)
         
-    db_session.commit()
+    ip_db_session.commit()
     flash(f'IP {ip} has been blacklisted')
     return redirect(url_for('ip_management'))
 
@@ -826,10 +934,10 @@ def blacklist_ip():
 @app.route('/admin/delete_ip/<int:ip_id>', methods=['POST'])
 @login_required
 def delete_ip(ip_id):
-    if current_user.username != hashlib.sha256('admin'.encode()).hexdigest():
+    if current_user.username != 'admin':
         abort(403)
         
-    ip_record = db_session.query(IPAddress).get(ip_id)
+    ip_record = ip_db_session.query(IPAddress).get(ip_id)
     
     if ip_record:
         # Don't allow deletion of admin IP
@@ -837,8 +945,8 @@ def delete_ip(ip_id):
             flash('Cannot delete admin IP from whitelist')
             return redirect(url_for('ip_management'))
             
-        db_session.delete(ip_record)
-        db_session.commit()
+        ip_db_session.delete(ip_record)
+        ip_db_session.commit()
         flash(f'IP record for {ip_record.ip} has been deleted')
     
     return redirect(url_for('ip_management'))
@@ -853,7 +961,7 @@ def health_check():
 @login_required
 def pip_commands():
     """Display common pip commands for reference"""
-    if current_user.username != hashlib.sha256('admin'.encode()).hexdigest():
+    if current_user.username != 'admin':
         abort(403)  # Only admin can see pip commands
         
     commands = {
@@ -862,27 +970,47 @@ def pip_commands():
             {'command': 'pip install package_name==1.0.0', 'description': '특정 버전 설치'},
             {'command': 'pip install -r requirements.txt', 'description': 'requirements.txt 파일에서 패키지 설치'},
             {'command': 'pip install --upgrade package_name', 'description': '패키지 업그레이드'},
+            {'command': 'pip install --no-cache-dir package_name', 'description': '캐시 없이 설치'},
+            {'command': 'pip install package_name --force-reinstall', 'description': '강제 재설치'},
+            {'command': 'pip install git+https://github.com/user/repo.git', 'description': 'GitHub 저장소에서 직접 설치'},
+            {'command': 'pip install package_name --user', 'description': '현재 사용자 경로에만 설치'},
         ],
         'Uninstallation': [
             {'command': 'pip uninstall package_name', 'description': '패키지 제거'},
             {'command': 'pip uninstall -r requirements.txt', 'description': 'requirements.txt에 있는 패키지 모두 제거'},
+            {'command': 'pip uninstall package_name -y', 'description': '확인 없이 패키지 제거'},
         ],
         'Information': [
             {'command': 'pip list', 'description': '설치된 패키지 목록 표시'},
             {'command': 'pip show package_name', 'description': '특정 패키지 상세 정보 표시'},
             {'command': 'pip freeze', 'description': '현재 환경의 패키지 버전 목록 생성 (requirements.txt 생성용)'},
             {'command': 'pip freeze > requirements.txt', 'description': '현재 환경을 requirements.txt 파일로 저장'},
+            {'command': 'pip list --outdated', 'description': '업데이트 가능한 패키지 목록 표시'},
+            {'command': 'pip check', 'description': '설치된 패키지의 종속성 충돌 검사'},
+            {'command': 'pip search package_name', 'description': '패키지 검색 (더 이상 지원되지 않음)'},
         ],
         'Configuration': [
             {'command': 'pip config list', 'description': 'pip 설정 확인'},
             {'command': 'pip config set global.index-url URL', 'description': '패키지 인덱스 URL 설정'},
             {'command': 'pip --version', 'description': 'pip 버전 확인'},
+            {'command': 'pip config set global.trusted-host domain', 'description': '신뢰할 수 있는 호스트 도메인 설정'},
+            {'command': 'pip cache info', 'description': '캐시 정보 표시'},
+            {'command': 'pip cache purge', 'description': '캐시 비우기'},
         ],
         'Environment': [
             {'command': 'python -m venv venv', 'description': '가상 환경 생성'},
             {'command': 'venv\\Scripts\\activate', 'description': '가상 환경 활성화 (Windows)'},
             {'command': 'source venv/bin/activate', 'description': '가상 환경 활성화 (Linux/Mac)'},
             {'command': 'deactivate', 'description': '가상 환경 비활성화'},
+            {'command': 'python -m virtualenv venv', 'description': 'virtualenv로 가상 환경 생성'},
+            {'command': 'python -m pip install --upgrade pip', 'description': 'pip 자체 업그레이드'},
+        ],
+        'Advanced': [
+            {'command': 'pip install -e .', 'description': '개발 모드로 현재 디렉토리 패키지 설치'},
+            {'command': 'pip wheel package_name', 'description': '패키지의 wheel 파일 생성'},
+            {'command': 'pip download package_name', 'description': '패키지 다운로드만 (설치 안 함)'},
+            {'command': 'pip install --only-binary :all: package_name', 'description': '바이너리 패키지만 설치'},
+            {'command': 'pip install --no-deps package_name', 'description': '종속성 없이 패키지 설치'},
         ]
     }
     
@@ -949,6 +1077,28 @@ def server_restart():
     message = get_restart_message()
     return render_template('restart.html', message=message, css_url=url_for('static', filename='style.css'))
 
+# Add server restart notification functionality
+@socketio.on('connect')
+def handle_connect():
+    print(f"Client connected: {request.sid}")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f"Client disconnected: {request.sid}")
+
+def broadcast_restart():
+    """Broadcast server restart message to all clients"""
+    print("Broadcasting restart notification to all clients")
+    socketio.emit('server_restart', {'message': 'Server is restarting. The page will refresh automatically.'})
+
+# Listen for Flask reloader signals
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    print("Reloader active - server restarting")
+    try:
+        broadcast_restart()
+    except Exception as e:
+        print(f"Error broadcasting restart: {e}")
+
 if __name__ == '__main__':
     # Delete data_database.db if it exists
     old_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data_database.db')
@@ -958,6 +1108,31 @@ if __name__ == '__main__':
             print(f"Removed old database: {old_db_path}")
         except Exception as e:
             print(f"Error removing old database: {e}")
+    
+    # Make sure instance path exists
+    if not os.path.exists(app.config['INSTANCE_PATH']):
+        os.makedirs(app.config['INSTANCE_PATH'])
+        print(f"Created instance directory: {app.config['INSTANCE_PATH']}")
+    
+    # Check if database files exist
+    user_db_file_path = os.path.join(app.config['INSTANCE_PATH'], 'data_database.db')
+    chat_db_file_path = os.path.join(app.config['INSTANCE_PATH'], 'chat_data.db')
+    ip_db_file_path = os.path.join(app.config['INSTANCE_PATH'], 'ip_data_database.db')
+    
+    if not os.path.exists(user_db_file_path):
+        print(f"User database file not found. Creating new database at: {user_db_file_path}")
+    else:
+        print(f"Using existing user database at: {user_db_file_path}")
+        
+    if not os.path.exists(chat_db_file_path):
+        print(f"Chat database file not found. Creating new database at: {chat_db_file_path}")
+    else:
+        print(f"Using existing chat database at: {chat_db_file_path}")
+        
+    if not os.path.exists(ip_db_file_path):
+        print(f"IP database file not found. Creating new database at: {ip_db_file_path}")
+    else:
+        print(f"Using existing IP database at: {ip_db_file_path}")
     
     with app.app_context():
         # Check if tables exist and create them if needed
@@ -971,12 +1146,12 @@ if __name__ == '__main__':
         
         # Check if we need to add the display_name column to the user table
         from sqlalchemy import inspect
-        inspector = inspect(engine)
+        inspector = inspect(user_engine)
         columns = [col['name'] for col in inspector.get_columns('user')]
         
         if 'display_name' not in columns:
             # Add display_name column to the existing table
-            with engine.connect() as conn:
+            with user_engine.connect() as conn:
                 conn.execute("ALTER TABLE user ADD COLUMN display_name VARCHAR(150)")
                 conn.commit()
                 print("Added display_name column to user table")
@@ -986,9 +1161,45 @@ if __name__ == '__main__':
                 conn.commit()
                 print("Updated display_name for existing users")
         
-        print("Database initialized successfully")
+        print("Databases initialized successfully")
+        print(f"User database location: {app.config['USER_DATABASE_URI']}")
+        print(f"Chat database location: {app.config['CHAT_DATABASE_URI']}")
+        print(f"IP database location: {app.config['IP_DATABASE_URI']}")
         print("Your whitelisted IP: 121.137.65.116")
         print("Admin account is ready with SHA256 password hash")
+        
+        # Additional verification for admin account using plaintext username
+        admin_user = user_db_session.query(User).filter_by(username='admin').first()
+        
+        if admin_user:
+            print("Verified admin account exists in database")
+        else:
+            print("WARNING: Failed to verify admin account")
+            # Try one more time to create admin account
+            recreate_admin_user()
             
-    # Enable auto-reload on code changes
-    app.run(host="0.0.0.0", port=80, debug=True, use_reloader=True)
+    # Register broadcast_restart to be called before app shuts down for reload
+    from werkzeug.serving import is_running_from_reloader
+    if not is_running_from_reloader():
+        # Only register in the main process, not reloader
+        import atexit
+        atexit.register(broadcast_restart)
+    
+    # Enable auto-reload on code changes with extra_files to watch
+    extra_files = []
+    
+    # Watch templates folder
+    templates_dir = os.path.join(app.root_path, 'templates')
+    for filename in os.listdir(templates_dir):
+        if filename.endswith('.html'):
+            extra_files.append(os.path.join(templates_dir, filename))
+            
+    # Watch static folder (JS, CSS files)
+    static_dir = os.path.join(app.root_path, 'static')
+    for root, dirs, files in os.walk(static_dir):
+        for filename in files:
+            if filename.endswith(('.js', '.css')):
+                extra_files.append(os.path.join(root, filename))
+    
+    print(f"Watching {len(extra_files)} additional files for changes")
+    socketio.run(app, host='0.0.0.0', port=80, debug=True, use_reloader=True, extra_files=extra_files)

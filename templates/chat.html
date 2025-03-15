@@ -20,11 +20,11 @@
         }
 
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
             margin: 0;
             padding: 0;
             height: 100vh;
-            display: flex;
+            font-family: Arial, sans-serif;
             color: var(--text-color);
         }
 
@@ -356,70 +356,279 @@
             background-color: #252525;
             border-color: #444;
         }
+
+        .left-panel {
+            width: 250px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+        .left-panel h2 {
+            margin-top: 0;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .profile-section {
+            display: flex;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .profile-pic {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #3498db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .profile-name {
+            flex-grow: 1;
+        }
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .chat-container {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .input-container {
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            display: flex;
+        }
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+        }
+        .user-message {
+            align-self: flex-end;
+            background-color: #DCF8C6;
+            padding: 10px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+        .bot-message-container {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .bot-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+        }
+        .bot-message {
+            background-color: #F1F0F0;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: calc(80% - 50px);
+        }
+        .admin-options {
+            margin-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding-top: 15px;
+        }
+        .admin-options h3 {
+            margin-top: 0;
+        }
+        .admin-button {
+            display: block;
+            margin: 10px 0;
+            padding: 8px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 100%;
+            cursor: pointer;
+            text-align: center;
+        }
+        .admin-button:hover {
+            background-color: #2980b9;
+        }
+
+        /* Added styles for user profile panel */
+        .chat-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .chat-main {
+            flex-grow: 1;
+            max-width: 75%;
+        }
+        
+        .user-profile-panel {
+            width: 25%;
+            padding: 15px;
+            margin-left: 15px;
+            border-left: 1px solid #e0e0e0;
+        }
+        
+        .user-profile {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .user-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin: 0 auto 10px auto;
+        }
+        
+        .user-settings {
+            margin-top: 20px;
+        }
+        
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        .setting-name {
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .chat-container {
+                flex-direction: column;
+            }
+            
+            .chat-main, .user-profile-panel {
+                max-width: 100%;
+                width: 100%;
+            }
+            
+            .user-profile-panel {
+                margin-left: 0;
+                margin-top: 20px;
+                border-left: none;
+                border-top: 1px solid #e0e0e0;
+            }
+        }
     </style>
+    <!-- Add Socket.IO client library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+    <!-- jQuery is required for our socket handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 </head>
 <body class="{{ 'dark-theme' if dark_mode else 'auto-theme' }}">
-    <div class="sidebar">
-        <button class="new-chat-btn" id="clearChat">
-            <i class="fas fa-plus"></i> New chat
-        </button>
+    <div class="left-panel">
+        <h2>JakkChatBot</h2>
         
-        <div class="model-selector">
-            <select id="modelSelector">
-                {% for model in models %}
-                <option value="{{ model.id }}">{{ model.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        
-        <div class="saved-chats" id="savedChatsList">
-            <!-- Saved chats will be populated here -->
-        </div>
-        
-        <div class="user-section">
-            <div class="user-icon">
-                <i class="fas fa-user"></i>
+        <div class="profile-section">
+            <div class="profile-pic">
+                {% if session.get('is_admin') %}A{% else %}U{% endif %}
             </div>
-            <div class="username">{{ current_user.username }}</div>
-        </div>
-    </div>
-    
-    <div class="main">
-        <div class="top-bar">
-            <button class="logout-btn" title="Logout" onclick="location.href='{{ url_for('logout') }}'"> 
-                <i class="fas fa-sign-out-alt"></i>
-            </button>
+            <div class="profile-name">
+                {{ session.get('username', 'User') }}
+                {% if session.get('is_admin') %}<span style="font-size: 12px; color: #3498db;"> (Admin)</span>{% endif %}
+            </div>
         </div>
         
-        <div class="chat-container" id="chatContainer">
-            <div class="chat-messages" id="chat-messages">
-                {% if show_welcome and history|length == 0 %}
-                    <div class="message bot-message welcome-message">
-                        <p>{{ welcome_message }}</p>
-                    </div>
-                {% else %}
+        {% if session.get('is_admin') %}
+        <div class="admin-options">
+            <h3>Admin Panel</h3>
+            <button class="admin-button" onclick="location.href='/admin'">Admin Dashboard</button>
+            <button class="admin-button" onclick="showActiveSessions()">Active Sessions</button>
+            <button class="admin-button" onclick="showSystemStats()">System Stats</button>
+            <button class="admin-button" onclick="clearAllChats()">Clear All Chats</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="main-content">
+        <div class="chat-container" id="chat-container">
+            <div class="chat-main">
+                <!-- Messages will appear here -->
+                {% if history %}
                     {% for message in history %}
-                        <div class="message {% if message.role == 'user' %}user-message{% else %}bot-message{% endif %}">
-                            <p>{{ message.content|safe }}</p>
+                        {% if message.role == 'user' %}
+                        <div class="user-message-container">
+                            <div class="user-icon">U</div>
+                            <div class="user-message">{{ message.content | safe }}</div>
                         </div>
+                        {% else %}
+                        <div class="bot-message-container">
+                            <div class="bot-icon">B</div>
+                            <div class="bot-message">{{ message.content | safe }}</div>
+                        </div>
+                        {% endif %}
                     {% endfor %}
                 {% endif %}
             </div>
+            
+            <div class="user-profile-panel">
+                <div class="user-profile">
+                    <div class="user-avatar">
+                        {{ display_name[0]|upper }}
+                    </div>
+                    <h3>{{ display_name }}</h3>
+                </div>
+                
+                <div class="user-settings">
+                    <h4>설정</h4>
+                    
+                    <div class="setting-row">
+                        <span class="setting-name">TTS 활성화</span>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="tts-toggle" class="toggle-checkbox" {{ 'checked' if tts_enabled else '' }}>
+                            <label for="tts-toggle" class="toggle-label"></label>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <span class="setting-name">모델</span>
+                        <select id="model-selector" class="model-select">
+                            {% for model in models %}
+                            <option value="{{ model.id }}" {{ 'selected' if model.id == preferred_model else '' }}>{{ model.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <button id="clear-chat" class="btn-secondary">대화 내용 지우기</button>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <button id="save-chat" class="btn-primary">대화 저장</button>
+                    </div>
+                </div>
+            </div>
         </div>
         
-        <div class="input-area">
-            <form class="message-form" id="messageForm">
-                <div class="message-icons">
-                    <i class="far fa-comment-dots"></i>
-                </div>
-                <textarea class="message-input" id="userInput" name="message" placeholder="{{ placeholder }}" rows="1"></textarea>
-                <button type="submit" class="send-btn" id="sendBtn" disabled>
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-            </form>
+        <div class="input-container">
+            <input type="text" id="user-input" placeholder="Type your message..." style="flex-grow: 1; margin-right: 10px; padding: 8px;">
+            <button onclick="sendMessage()" style="padding: 8px 15px;">Send</button>
         </div>
     </div>
 
+    <script src="/static/js/socket_handler.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const messageForm = document.getElementById('messageForm');
@@ -673,8 +882,74 @@
                 });
             }
         });
+
+        function sendMessage() {
+            const userInput = document.getElementById('user-input');
+            const message = userInput.value.trim();
+            
+            if (message) {
+                // Add user message to chat
+                const chatContainer = document.getElementById('chat-container');
+                const userMessage = document.createElement('div');
+                userMessage.className = 'message user-message';
+                userMessage.textContent = message;
+                chatContainer.appendChild(userMessage);
+                
+                // Scroll to bottom
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                
+                // Clear input
+                userInput.value = '';
+                
+                // Send to server and get bot response (simulate for now)
+                setTimeout(() => {
+                    const botMessageContainer = document.createElement('div');
+                    botMessageContainer.className = 'bot-message-container';
+                    
+                    const botIcon = document.createElement('div');
+                    botIcon.className = 'bot-icon';
+                    botIcon.textContent = 'B';
+                    
+                    const botMessage = document.createElement('div');
+                    botMessage.className = 'bot-message';
+                    botMessage.textContent = `This is a response to: "${message}"`;
+                    
+                    botMessageContainer.appendChild(botIcon);
+                    botMessageContainer.appendChild(botMessage);
+                    chatContainer.appendChild(botMessageContainer);
+                    
+                    // Scroll to bottom again
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }, 500);
+            }
+        }
+
+        // Admin functions
+        function showActiveSessions() {
+            alert("Active Sessions: 3 users connected");
+        }
+        
+        function showSystemStats() {
+            alert("CPU: 45% | Memory: 60% | Disk: 30%");
+        }
+        
+        function clearAllChats() {
+            if (confirm("Are you sure you want to clear all chats?")) {
+                document.getElementById('chat-container').innerHTML = '';
+            }
+        }
+        
+        // Allow sending with Enter key
+        document.getElementById('user-input').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
     </script>
 
+    <!-- Make sure Socket.IO is loaded before other scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
     <!-- Server status monitoring script -->
     <script src="{{ url_for('static', filename='server-monitor.js') }}"></script>
 </body>

@@ -23,3 +23,6 @@ googlesearch-python
 google-cloud-texttospeech
 protobuf==3.20.3
 grpcio-status==1.47.0
+flask-socketio
+eventlet
+gevent gevent-websocket
