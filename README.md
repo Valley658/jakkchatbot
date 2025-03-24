@@ -51,6 +51,8 @@ jakkChatBOT is an advanced chatbot application meticulously crafted using Flask,
     npm start
     ```
 
+3. **Important Note:** When running start.bat, please make sure to run it as an administrator for proper functionality.
+
 ## Usage
 - **Access the application:** Navigate to `http://localhost:80` in your web browser.
 - **User Registration and Login:** Register a new user or log in with an existing account to start interacting with the chatbot.

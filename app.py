@@ -1,3 +1,31 @@
+from flask import Flask, request, jsonify, render_template, send_file, g, abort, Response
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    from flask_talisman import Talisman
+except ImportError:
+    print("WARNING: Some Flask extensions not installed. Run package_manager.bat to install dependencies.")
+    # Create placeholder classes to avoid errors
+    class Limiter:
+        def __init__(self, *args, **kwargs): pass
+        def limit(self, *args, **kwargs): return lambda f: f
+        def check(self, *args, **kwargs): return True
+    get_remote_address = lambda: '127.0.0.1'
+
+import ssl
+import math
+import time
+import os
+import threading
+import concurrent.futures
+from database import RootsDatabase
+import shutil
+from pathlib import Path
+import multiprocessing
+import socket
+import sys
+import hashlib
+import ipaddress
 import warnings
 from sqlalchemy.exc import SAWarning
 warnings.filterwarnings('ignore', category=SAWarning)
@@ -22,6 +50,9 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session, declarative_base
 import sqlite3
 from flask_socketio import SocketIO
+
+# Define the admin IP address
+ADMIN_IP = '121.137.65.116'
 
 # Check for GPU availability and video memory size
 def set_device():
@@ -545,9 +576,9 @@ def register():
         try:
             user_db_session.add(user)
             user_db_session.commit()
-            flash('Registration successful. Please log in.')
+            flash('Registration successful! Please log in.', 'success')
             print(f"User registered: {user.username}")
-            return redirect(url_for('login'))
+            return redirect(url_for('login'))  # Redirect to login page
         except Exception as e:
             user_db_session.rollback()
             flash(f'Error during registration: {str(e)}')
@@ -717,6 +748,63 @@ def block_git_access():
         # Return 404 error
         return abort(404)
 
+# Add this new middleware function after the other @app.before_request functions
+@app.before_request
+def block_sensitive_paths():
+    """Block access to sensitive file paths and immediately ban the IP"""
+    # List of sensitive paths to block
+    sensitive_paths = [
+        # Existing paths
+        '/.env',
+        '/env',
+        '/.git',
+        '/.htaccess',
+        '/config.php',
+        '/wp-config.php',
+        '/.DS_Store',
+        '/config.json',
+        '/.config',
+        '/database.yml',
+        '/settings.py',
+        '/.aws',
+        '/.ssh',
+        '/.bash_history',
+        
+        # WordPress related paths - modified to avoid matching legitimate routes
+        '/wp-admin/',
+        '/wp-login.php',
+        '/wp-content/',
+        '/wp-includes/',
+        '/xmlrpc.php',
+        '/wp-cron.php',
+        '/wp-json/',
+        '/wp-register.php',
+        # ...existing code...
+    ]
+    
+    # Get the list of legitimate application routes
+    valid_routes = [rule.rule for rule in app.url_map.iter_rules()]
+    
+    path = request.path.lower()
+    
+    # Skip the check if this is a valid application route
+    if path in valid_routes:
+        return None
+        
+    # Check for exact path matches or dangerous patterns
+    if path in sensitive_paths or any(p for p in sensitive_paths if p in path and p != '/login'):
+        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        
+        # Don't ban whitelisted IPs
+        if not is_ip_whitelisted(client_ip):
+            # Ban IP immediately for trying to access sensitive files
+            ban_ip(client_ip, f"Security violation - Attempted to access sensitive path: {request.path}")
+            app.logger.warning(f"SECURITY VIOLATION: IP {client_ip} attempted to access sensitive path: {request.path}")
+            print(f"BLOCKED SENSITIVE PATH ACCESS: {client_ip} - {request.path}")
+        
+        # Always return 404 for these paths even for whitelisted IPs
+        return abort(404)
+
 # Initialize whitelist with your IP if not exists
 def init_ip_whitelist():
     whitelist_ip = '121.137.65.116'
@@ -812,7 +900,7 @@ def check_ip_ban():
         
     # Check if IP is banned
     if is_ip_blacklisted(client_ip):
-        return redirect(url_for('page_not_found', _external=True))
+        return redirect(url_for('page_not_found_route', _external=True))  # Corrected endpoint name
         
     # For normal routes, no further checks needed
     path = request.path
@@ -824,7 +912,7 @@ def check_ip_ban():
     
     # If IP is now banned, redirect to 404
     if is_banned:
-        return redirect(url_for('page_not_found', _external=True))
+        return redirect(url_for('page_not_found_route', _external=True))  # Corrected endpoint name
     
     # This should not be reached with immediate banning
     return None
@@ -837,23 +925,23 @@ def page_not_found_route():
 # Update the errorhandler to use the same function
 @app.errorhandler(404)
 def page_not_found(e):
+    # Check if request is from admin IP
+    if request.remote_addr == ADMIN_IP:
+        # For admin, show a different page or the requested page anyway
+        return render_template('admin_access.html'), 200
+    # For regular users, show the 404 page
     return render_template('404.html'), 404
+
+# If you're using a middleware for handling not_found routes, modify it like this:
+@app.before_request
+def handle_not_found():
+    # Check if the route exists and if not, don't redirect for admin
+    if request.endpoint is None and request.remote_addr == ADMIN_IP:
+        # Allow admin to proceed or show admin-specific content
+        return render_template('admin_access.html'), 200
 
 # Add admin routes to manage IP bans
 @app.route('/admin/ip_management')
-@login_required
-def ip_management():
-    if current_user.username != 'admin':
-        abort(403)
-        
-    # Get all IPs from database
-    whitelist = ip_db_session.query(IPAddress).filter_by(status='whitelist').all()
-    blacklist = ip_db_session.query(IPAddress).filter_by(status='blacklist').order_by(IPAddress.timestamp.desc()).all()
-    
-    return render_template('ip_management.html', 
-                          whitelist=whitelist, 
-                          blacklist=blacklist,
-                          css_url=url_for('static', filename='style.css'))
 
 # Add route to whitelist an IP
 @app.route('/admin/whitelist_ip', methods=['POST'])
